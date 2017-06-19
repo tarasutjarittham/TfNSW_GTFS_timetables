@@ -13,6 +13,8 @@ from dateutil import parser
 from dateutil import tz
 from pathlib2 import Path
 
+
+
 p = OptionParser()
 
 p.add_option('-u', '--url', default=None, dest='url',
@@ -23,6 +25,9 @@ p.add_option('-k', '--apikey', default=False, dest='apiKey',
 
 p.add_option('-n', '--filename', default=False, dest='filename',
              help='to be included in the file name', metavar='NAME')
+
+p.add_option('-d', '--database', default=None, dest='dsn',
+             help='Database connection string', metavar='DSN')
 
 opts,args = p.parse_args()
 #opts= p.parse_args()
@@ -131,13 +136,19 @@ def checkLastDate(response_head, url):
         return True
 
 
-
 def checkStatus(response):
     try:
         status = response.status_code
         return status
     except StandardError:
         return None
+
+def toDatabase(zipFile):
+    # Save to Database
+    print("Saving response to database")
+    cmd = 'gtfsdb-master/bin/gtfsdb-load --database_url=' + opts.dsn + ' ' + zipFile
+    # os.system('gtfsdb-load --database_url="postgresql://localhost/gtfs_db_tfnsw" 20170612-162319_buses.zip')
+    os.system(cmd)
 
 def saveZip(response, fileName):
     file_name = time.strftime("%Y%m%d-%H%M%S_") + fileName + ".zip"
@@ -146,6 +157,9 @@ def saveZip(response, fileName):
         file = open(file_name, 'w')
         file.write(response.content)
         file.close()
+
+        #To Database
+        toDatabase(file_name)
 
     except ValueError, error:
         print("Error: Couldn't save file")
