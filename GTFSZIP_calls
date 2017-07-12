@@ -1,0 +1,12 @@
+#!/bin/bash
+# This script is used to run multiple python script to query all modes of GTFSR schedule data and save to zip files
+
+#Set working directory
+cd "${0%/*}"
+
+#BUS Query Real Time
+/home/amarinS/app/python/bin/python gtfsdb_tfnsw_ziponly.py -u "https://api.transport.nsw.gov.au/v1/gtfs/schedule/buses" --apikey="xosY8k8ozGW0x4hntluxZs6HtZOnHUNI7MYL" -m 'buses' &
+/home/amarinS/app/python/bin/python gtfsdb_tfnsw_ziponly.py -u "https://api.transport.nsw.gov.au/v1/gtfs/schedule/sydneytrains" --apikey="xosY8k8ozGW0x4hntluxZs6HtZOnHUNI7MYL" -m 'sydneytrains' &
+/home/amarinS/app/python/bin/python gtfsdb_tfnsw_ziponly.py -u "https://api.transport.nsw.gov.au/v1/gtfs/schedule/ferries" --apikey="xosY8k8ozGW0x4hntluxZs6HtZOnHUNI7MYL" -m 'ferries' &
+/home/amarinS/app/python/bin/python gtfsdb_tfnsw_ziponly.py -u "https://api.transport.nsw.gov.au/v1/gtfs/schedule/lightrail" --apikey="3FhDev237kIgnvf2qUcEtaogxW8UHDYgaSGZ" -m 'lightrail' &
+/home/amarinS/app/python/bin/python gtfsdb_tfnsw_ziponly.py -u "https://api.transport.nsw.gov.au/v1/gtfs/schedule/nswtrains" --apikey="3FhDev237kIgnvf2qUcEtaogxW8UHDYgaSGZ" -m 'nswtrains' &
