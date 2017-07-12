@@ -23,7 +23,7 @@ p.add_option('-u', '--url', default=None, dest='url',
 p.add_option('-k', '--apikey', default=False, dest='apiKey',
              help='API Key', metavar='KEY')
 
-p.add_option('-n', '--filename', default=False, dest='filename',
+p.add_option('-m', '--transport_mode', default=False, dest='mode',
              help='to be included in the file name', metavar='NAME')
 
 p.add_option('-d', '--database', default=None, dest='dsn',
@@ -69,7 +69,7 @@ def checkFileStatus(url):
                     print("Key exists")
                     return 'file exists - key exists'
                 else:       # Key does not exist
-                    print("Key DOES NOT exists")
+                    print("Key DOES NOT exist")
                     return 'file exists - no key exists'
             except ValueError as e:
                 print "Can't read JSON object"  # Does not exist OR no read permissions
@@ -78,7 +78,7 @@ def checkFileStatus(url):
         print("last_modified.json DOES NOT exist")
         return 'no file exists'
 
-# Check if time-table has been modified since last download
+# Check if time-table has been modified since last download. Return T/F AND latest modified date
 def checkLastDate(response_head, url):
     # Get latest modified date from response header
     latest_modified = parser.parse(response_head.headers['Last-Modified']).astimezone(tz=pytz.timezone('Australia/Sydney'))
@@ -88,21 +88,24 @@ def checkLastDate(response_head, url):
         with open(fname, 'r') as json_data:
             # Read last_modified text and get the last modified date
             d1 = json.load(json_data)
-            last_mod_date = parser.parse(d1[url]).replace(tzinfo=pytz.timezone('Australia/Sydney'))
+            #last_mod_date = parser.parse(d1[url]).replace(tzinfo=pytz.timezone('Australia/Sydney'))
+            last_mod_date = parser.parse(d1[url])
 
         # Check if response has been updated
         if latest_modified > last_mod_date:
+            print("Response has been updated. Updating json file...")
             # Update last modified date
-            d1[url] = latest_modified.strftime("%d-%B-%Y %H:%M:%S")
+            #d1[url] = latest_modified.strftime("%d-%B-%Y %H:%M:%S")
+            d1[url] = str(latest_modified)
             with open('last_modified.json', 'w') as json_data:
                 # Read last_modified text and get the last modified date
                 print("modified_date updated")
                 json.dump(d1, json_data)
-            return True
+            return {'keep_running':True, 'date_modified':latest_modified}
 
         else:
-            print("modified_date is not updated")
-            return False
+            print("modified_date has not been updated since last download")
+            return {'keep_running':False, 'date_modified':latest_modified}
 
     # If modified_date.json DOES NOT exist of exists without key
     elif checkFileStatus(url) == 'file exists - no key exists':
@@ -114,28 +117,28 @@ def checkLastDate(response_head, url):
                 print "Can't read JSON object"  # Does not exist OR no read permissions
                 d1 = {}     # Create empty json
 
-            print("Adding json object (new KEY)")
-            d1[url] = latest_modified.strftime("%d-%B-%Y %H:%M:%S")     # Append json
+            print("Adding json object (new KEY) and updating last modified_date....")
+            d1[url] = str(latest_modified)     # Append json
             json_data.seek(0)
             json.dump(d1, json_data)
             json_data.truncate()
-        return True
+        return {'keep_running':True, 'date_modified':latest_modified}
 
     # File does not exist
     else:
         d1 = {}
-        d1[url] = latest_modified.strftime("%d-%B-%Y %H:%M:%S")
+        d1[url] = str(latest_modified)
         last_mod_date = latest_modified
         try:
             with open(fname,'w+') as json_data:
                 print(fname + " created")
-                print("Update last modified date")
+                print("Adding json object (new KEY) and Updating last modified_date....")
                 json.dump(d1, json_data)
         except IOError as e:
             print "Error writing json object"  # Does not exist OR no read permissions
-        return True
+        return {'keep_running':True, 'date_modified':latest_modified}
 
-
+#Check and return code status. E.g. 200
 def checkStatus(response):
     try:
         status = response.status_code
@@ -143,23 +146,33 @@ def checkStatus(response):
     except StandardError:
         return None
 
-def toDatabase(zipFile):
+#Run gtfsdb script
+def toDatabase(zipFile, mod_date):
     # Save to Database
-    print("Saving response to database")
-    cmd = 'gtfsdb-master/bin/gtfsdb-load --database_url=' + opts.dsn + ' ' + zipFile
+    print("Saving response to database...")
+    cmd = 'gtfsdb-tfnsw/bin/gtfsdb-load --database_url=' + opts.dsn + ' --transport_mode=' + opts.mode + ' --modified_date=' + '\"' +mod_date + '\"' + ' ' + zipFile
     # os.system('gtfsdb-load --database_url="postgresql://localhost/gtfs_db_tfnsw" 20170612-162319_buses.zip')
     os.system(cmd)
 
-def saveZip(response, fileName):
-    file_name = time.strftime("%Y%m%d-%H%M%S_") + fileName + ".zip"
-    #response = requests.get(url, headers=headers)
+#Save response zip file AND run toDatabase function
+def saveZip(response, fileName, mod_date):
+    #Check if a direcgtory exists
+    DIR_NAME = 'zip_files'
+    if not os.path.exists(DIR_NAME):
+        os.makedirs(DIR_NAME)
+
+    zipfile_name = mod_date.strftime("%Y%m%d-%H%M%S_") + fileName + ".zip"
+    file_name = os.path.join(DIR_NAME,zipfile_name)
+    # response = requests.get(url, headers=headers)
+
     try:
+        print("Saving zip file....")
         file = open(file_name, 'w')
         file.write(response.content)
         file.close()
 
         #To Database
-        toDatabase(file_name)
+        toDatabase(file_name,str(mod_date))
 
     except ValueError, error:
         print("Error: Couldn't save file")
@@ -170,7 +183,12 @@ if __name__ == '__main__':
     try:
         # Request response header to check if there is an update since last request
         response_head = requests.head(opts.url, headers=headers)
-        keep_running = checkLastDate(response_head, opts.url)
+        checkLastDate_response = checkLastDate(response_head, opts.url)
+
+        keep_running=checkLastDate_response["keep_running"]
+        date_modified=checkLastDate_response["date_modified"]
+        #date_modified = date_modified.strftime("%d-%B-%Y %H:%M:%S")
+        date_modified_str = str(date_modified)
 
         if keep_running:
             while keep_running:    # If true
@@ -179,8 +197,8 @@ if __name__ == '__main__':
 
                 if checkStatus(response) == 200:
                     print("status check........200 OK")
-                    saveZip(response,opts.filename)
-                    print("save response as zip file :) Thank you")
+                    saveZip(response,opts.mode, date_modified)
+                    print("DONE :) Thank you")
                     break
 
                 else:
