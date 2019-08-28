@@ -158,7 +158,7 @@ def checkStatus(response):
 #Save response zip file
 def saveZip(response, fileName, mod_date):
     #Check if a direcgtory exists
-    DIR_NAME = 'zip_files'
+    DIR_NAME = 'output/zip_files'
     if not os.path.exists(DIR_NAME):
         os.makedirs(DIR_NAME)
 

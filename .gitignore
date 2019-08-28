@@ -4,3 +4,4 @@ logs/*
 Iconr
 last_modified.json
 GTFSZIP_calls
+venv/*
